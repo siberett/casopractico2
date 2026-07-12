@@ -40,21 +40,6 @@ El flujo principal construye la imagen directamente en Azure Container Registry,
 
 No usar el tag `latest` para la entrega.
 
-## Prueba local opcional
-
-```bash
-podman run --rm -p 8080:8080 aks-counter:casopractico2
-```
-
-En otra terminal:
-
-```bash
-curl http://localhost:8080/
-curl http://localhost:8080/healthz
-```
-
-El contador aumenta en cada petición a `/`.
-
 ## Validacion en ACR
 
 ```bash

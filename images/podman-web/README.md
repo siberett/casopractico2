@@ -29,22 +29,10 @@ az acr repository list --name "${ACR%%.*}" -o table
 az acr repository show-tags --name "${ACR%%.*}" --repository podman-web -o table
 ```
 
-## Prueba local
+## Validacion
 
-La prueba local con Podman es opcional. Si se quiere ejecutar, hace falta tener Podman funcionando en la máquina local:
-
-```bash
-podman run --rm -p 8443:443 $ACR/podman-web:casopractico2
-```
-
-Valida la autenticación:
+La validacion principal se realiza despues del despliegue con:
 
 ```bash
-curl -k https://localhost:8443
-curl -k -u alumno:unir2026 https://localhost:8443
+./scripts/validate.sh
 ```
-
-Resultado esperado:
-
-- Sin credenciales: `401`.
-- Con credenciales: `200`.

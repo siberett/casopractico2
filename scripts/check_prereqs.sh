@@ -47,7 +47,7 @@ tfvar_value() {
   ' terraform/terraform.tfvars 2>/dev/null || true
 }
 
-if [[ ! -f AGENTS.md || ! -d terraform || ! -d ansible || ! -d images ]]; then
+if [[ ! -d terraform || ! -d ansible || ! -d images || ! -d scripts ]]; then
   fail "Ejecuta este script desde la raíz del repositorio."
 else
   ok "Ejecutándose desde la raíz del repositorio."
@@ -125,18 +125,6 @@ if [[ -f "$ssh_public_key_path" ]]; then
   ok "Existe clave pública SSH: $ssh_public_key_path"
 else
   fail "No existe la clave pública SSH esperada: $ssh_public_key_path"
-fi
-
-if [[ -d .venv ]]; then
-  ok "Existe entorno Python .venv."
-else
-  warn "No existe .venv. Se puede crear con: python3 -m venv .venv"
-fi
-
-if command -v podman >/dev/null 2>&1; then
-  ok "Podman local disponible para pruebas opcionales."
-else
-  warn "Podman local no está instalado. No bloquea el deploy porque las imágenes se construyen con az acr build."
 fi
 
 if terraform -chdir=terraform validate >/dev/null 2>&1; then

@@ -94,7 +94,7 @@ variable "acr_name" {
 variable "vm_name" {
   description = "Name of the Linux virtual machine."
   type        = string
-  default     = "vm-cp2-podman"
+  default     = "vm-cp2"
 }
 
 variable "vm_size" {

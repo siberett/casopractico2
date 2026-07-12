@@ -11,7 +11,7 @@ images/      Imagenes de las dos aplicaciones
 scripts/     Scripts de despliegue, validacion y destruccion
 ```
 
-La documentacion auxiliar, prompts, harness y entregables locales no forman parte del commit de despliegue.
+La documentacion auxiliar local no forma parte del commit de despliegue.
 
 ## Requisitos previos
 
