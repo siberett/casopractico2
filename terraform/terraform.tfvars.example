@@ -1,0 +1,34 @@
+subscription_id = "REEMPLAZAR"
+
+project_name = "casopractico2"
+environment = "casopractico2"
+location = "swedencentral"
+
+resource_group_name = "rg-casopractico2"
+
+admin_username = "azureuser"
+allowed_ssh_cidr = "TU_IP_PUBLICA/32"
+allowed_https_cidr = "*"
+
+acr_name = "acrnombreunico"
+
+vnet_name = "vnet-cp2"
+vm_subnet_name = "snet-vm"
+nsg_name = "nsg-cp2-vm"
+
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+ssh_private_key_path = "~/.ssh/id_ed25519"
+
+vm_name = "vm-cp2"
+vm_size = "Standard_B2ats_v2"
+vm_public_ip_name = "pip-cp2-vm"
+vm_nic_name = "nic-cp2-vm"
+
+aks_name = "aks-cp2"
+aks_dns_prefix = "akscp2"
+aks_node_count = 1
+aks_node_size = "Standard_D2s_v3"
+
+tags = {
+  owner = "tu_usuario"
+}

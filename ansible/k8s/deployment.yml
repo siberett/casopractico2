@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aks-counter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aks-counter
+  template:
+    metadata:
+      labels:
+        app: aks-counter
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: aks-counter
+          image: __ACR_LOGIN_SERVER__/aks-counter:casopractico2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: aks-counter-data
+              mountPath: /data
+      volumes:
+        - name: aks-counter-data
+          persistentVolumeClaim:
+            claimName: aks-counter-pvc

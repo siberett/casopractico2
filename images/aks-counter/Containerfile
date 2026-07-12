@@ -1,0 +1,20 @@
+FROM python:3.12-alpine3.20
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN addgroup -S app && \
+    adduser -S -G app app && \
+    mkdir -p /data && \
+    chown -R app:app /app /data
+
+COPY --chown=app:app app.py /app/app.py
+COPY --chown=app:app requirements.txt /app/requirements.txt
+
+USER app
+
+EXPOSE 8080
+
+CMD ["python", "/app/app.py"]

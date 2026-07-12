@@ -1,0 +1,45 @@
+- name: Deploy aks-counter on AKS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+
+  vars:
+    aks_image_name_effective: "{{ aks_image_name | default('aks-counter') }}"
+    aks_image_tag_effective: "{{ aks_image_tag | default('casopractico2') }}"
+    aks_namespace_effective: "{{ aks_namespace | default('cp2') }}"
+    aks_image: "{{ acr_login_server }}/{{ aks_image_name_effective }}:{{ aks_image_tag_effective }}"
+    aks_deployment_marker: "__ACR_LOGIN_SERVER__/aks-counter:casopractico2"
+
+  tasks:
+    - name: Apply aks-counter namespace
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('ansible.builtin.file', playbook_dir + '/k8s/namespace.yml') | from_yaml }}"
+
+    - name: Apply aks-counter PVC
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ aks_namespace_effective }}"
+        definition: "{{ lookup('ansible.builtin.file', playbook_dir + '/k8s/pvc.yml') | from_yaml }}"
+
+    - name: Apply aks-counter Deployment
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ aks_namespace_effective }}"
+        wait: true
+        wait_timeout: 300
+        definition: >-
+          {{
+            lookup('ansible.builtin.file', playbook_dir + '/k8s/deployment.yml')
+            | replace(aks_deployment_marker, aks_image)
+            | from_yaml
+          }}
+
+    - name: Apply aks-counter LoadBalancer Service
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ aks_namespace_effective }}"
+        wait: true
+        wait_timeout: 300
+        definition: "{{ lookup('ansible.builtin.file', playbook_dir + '/k8s/service.yml') | from_yaml }}"

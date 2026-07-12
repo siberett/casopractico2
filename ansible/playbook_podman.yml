@@ -1,0 +1,95 @@
+---
+- name: Configure Podman web container on Azure VM
+  hosts: podman_vm
+  become: true
+  gather_facts: true
+
+  vars:
+    podman_full_image: "{{ acr_login_server }}/{{ podman_image }}:{{ podman_image_tag }}"
+    podman_service_unit_path: "/etc/systemd/system/{{ podman_service_name }}"
+
+  tasks:
+    - name: Refresh apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Podman
+      ansible.builtin.apt:
+        name: podman
+        state: present
+
+    - name: Ensure Podman registry auth directory exists
+      ansible.builtin.file:
+        path: /root/.config/containers
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Login to private Azure Container Registry
+      containers.podman.podman_login:
+        registry: "{{ acr_login_server }}"
+        username: "{{ acr_admin_username }}"
+        password: "{{ acr_admin_password }}"
+        authfile: /root/.config/containers/auth.json
+
+    - name: Pull Podman web image from ACR
+      containers.podman.podman_image:
+        name: "{{ podman_full_image }}"
+        state: present
+        authfile: /root/.config/containers/auth.json
+
+    - name: Collect systemd service facts
+      ansible.builtin.service_facts:
+
+    - name: Stop existing Podman web service before reconciling the container
+      ansible.builtin.systemd_service:
+        name: "{{ podman_service_name }}"
+        state: stopped
+      when: podman_service_name in ansible_facts.services
+
+    - name: Create Podman web container
+      containers.podman.podman_container:
+        name: "{{ podman_container_name }}"
+        image: "{{ podman_full_image }}"
+        state: stopped
+        publish:
+          - "443:443"
+        recreate: false
+        authfile: /root/.config/containers/auth.json
+
+    - name: Install systemd unit for Podman web container
+      ansible.builtin.copy:
+        dest: "{{ podman_service_unit_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Podman container {{ podman_container_name }}
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          Type=simple
+          Restart=always
+          RestartSec=10
+          ExecStart=/usr/bin/podman start --attach {{ podman_container_name }}
+          ExecStop=/usr/bin/podman stop --time 10 {{ podman_container_name }}
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Reload systemd
+
+    - name: Enable and start Podman web service
+      ansible.builtin.systemd_service:
+        name: "{{ podman_service_name }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
