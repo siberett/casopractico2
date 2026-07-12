@@ -1,0 +1,17 @@
+acr_login_server: "REEMPLAZAR.azurecr.io"
+acr_admin_username: "REEMPLAZAR"
+acr_admin_password: "REEMPLAZAR_GENERADO_LOCALMENTE"
+
+podman_image: "podman-web"
+podman_image_tag: "casopractico2"
+podman_container_name: "cp2-web"
+podman_service_name: "container-cp2-web.service"
+web_basic_auth_user: "alumno"
+web_basic_auth_password: "unir2026"
+
+aks_image_name: "aks-counter"
+aks_image_tag: "casopractico2"
+aks_app_name: "aks-counter"
+aks_namespace: "cp2"
+aks_pvc_name: "aks-counter-pvc"
+aks_service_name: "aks-counter-svc"
