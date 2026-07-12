@@ -53,7 +53,7 @@ else
   ok "Ejecutándose desde la raíz del repositorio."
 fi
 
-for cmd in git az terraform podman ansible-playbook ansible-galaxy kubectl python3; do
+for cmd in git az terraform ansible-playbook ansible-galaxy kubectl python3; do
   need_command "$cmd"
 done
 
@@ -133,18 +133,10 @@ else
   warn "No existe .venv. Se puede crear con: python3 -m venv .venv"
 fi
 
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  if podman machine list >/dev/null 2>&1; then
-    ok "Podman machine list responde en macOS."
-  else
-    warn "No se pudo listar Podman machine. Ejecuta: podman machine init && podman machine start"
-  fi
-
-  if podman info >/dev/null 2>&1; then
-    ok "Podman está operativo."
-  else
-    warn "Podman no parece conectado. Ejecuta: podman machine start"
-  fi
+if command -v podman >/dev/null 2>&1; then
+  ok "Podman local disponible para pruebas opcionales."
+else
+  warn "Podman local no está instalado. No bloquea el deploy porque las imágenes se construyen con az acr build."
 fi
 
 if terraform -chdir=terraform validate >/dev/null 2>&1; then

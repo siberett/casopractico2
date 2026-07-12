@@ -21,7 +21,6 @@ La maquina de control necesita:
 - Terraform
 - Ansible
 - kubectl
-- Podman
 - Python 3
 - Git
 
@@ -39,6 +38,8 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 ```
 
 Ese fichero debe completarse con la suscripcion, region, nombre unico de ACR, rutas de claves SSH, CIDR permitido para SSH y tamanos de VM/AKS.
+
+No hace falta tener Podman local funcionando para construir las imagenes. El script usa build remoto con Azure Container Registry. Podman se instala automaticamente dentro de la VM mediante Ansible.
 
 ## Despliegue
 
@@ -128,4 +129,3 @@ kubeconfig
 ```
 
 No deben borrarse durante el desarrollo solo por no subirse a Git. Se conservan localmente para poder repetir despliegues, validaciones o destruccion.
-

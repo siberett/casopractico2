@@ -30,18 +30,12 @@ La página HTML muestra:
 - Valor actual del contador.
 - Ruta de persistencia `/data/counter.txt`.
 
-## Build local
+## Build y push
 
-Desde la raíz del repositorio:
-
-```bash
-podman build --platform=linux/amd64 -t aks-counter:casopractico2 images/aks-counter
-```
-
-También puede construirse con Docker si se usa como herramienta local:
+El flujo principal construye la imagen directamente en Azure Container Registry, por lo que no depende de Podman local:
 
 ```bash
-docker build --platform=linux/amd64 -t aks-counter:casopractico2 images/aks-counter
+./scripts/build_and_push_images.sh
 ```
 
 No usar el tag `latest` para la entrega.
@@ -61,20 +55,10 @@ curl http://localhost:8080/healthz
 
 El contador aumenta en cada petición a `/`.
 
-## Build y push de `aks-counter`
-
-Desde la raíz del repositorio:
+## Validacion en ACR
 
 ```bash
 ACR=$(terraform -chdir=terraform output -raw acr_login_server)
-
-podman login "$ACR" \
-  -u "$(terraform -chdir=terraform output -raw acr_admin_username)" \
-  -p "$(terraform -chdir=terraform output -raw acr_admin_password)"
-
-podman build --platform=linux/amd64 -t $ACR/aks-counter:casopractico2 images/aks-counter
-podman push $ACR/aks-counter:casopractico2
-
 az acr repository list --name "${ACR%%.*}" -o table
 az acr repository show-tags --name "${ACR%%.*}" --repository aks-counter -o table
 ```

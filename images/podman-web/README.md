@@ -16,38 +16,10 @@ Credenciales demo:
 
 ## Build y push al ACR
 
-En macOS, inicializa y arranca la máquina de Podman antes de usar `podman build`, `podman run` o `podman push`:
+El flujo principal del repositorio no necesita construir esta imagen con Podman local. El script usa build remoto en Azure Container Registry:
 
 ```bash
-podman machine init
-podman machine start
-podman info
-```
-
-Obtén el login server del ACR desde Terraform:
-
-```bash
-ACR=$(terraform -chdir=terraform output -raw acr_login_server)
-```
-
-Autentícate en el ACR:
-
-```bash
-podman login "$ACR" \
-  -u "$(terraform -chdir=terraform output -raw acr_admin_username)" \
-  -p "$(terraform -chdir=terraform output -raw acr_admin_password)"
-```
-
-Construye la imagen para `linux/amd64`:
-
-```bash
-podman build --platform=linux/amd64 -t $ACR/podman-web:casopractico2 images/podman-web
-```
-
-Sube la imagen al ACR:
-
-```bash
-podman push $ACR/podman-web:casopractico2
+./scripts/build_and_push_images.sh
 ```
 
 Valida el repositorio y el tag en ACR:
@@ -59,7 +31,7 @@ az acr repository show-tags --name "${ACR%%.*}" --repository podman-web -o table
 
 ## Prueba local
 
-Ejecuta la imagen publicada:
+La prueba local con Podman es opcional. Si se quiere ejecutar, hace falta tener Podman funcionando en la máquina local:
 
 ```bash
 podman run --rm -p 8443:443 $ACR/podman-web:casopractico2
