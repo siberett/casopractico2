@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Genera los ficheros locales que Ansible necesita.
+# No se suben a Git porque contienen datos del despliegue real.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+
+# Los ficheros generados pueden contener credenciales, por eso se crean restrictivos.
 umask 077
 tmp_group_vars=""
 trap '[[ -n "$tmp_group_vars" && -f "$tmp_group_vars" ]] && rm -f "$tmp_group_vars"' EXIT
 
+# Lee valores locales desde terraform.tfvars, como la ruta de la clave privada.
 tfvar_value() {
   local key="$1"
   awk -F= -v key="$key" '
@@ -20,6 +25,7 @@ tfvar_value() {
   ' terraform/terraform.tfvars 2>/dev/null || true
 }
 
+# Expande rutas tipo ~/ para que Ansible no reciba rutas mal formadas.
 expand_path() {
   case "$1" in
     "~/"*) printf '%s/%s\n' "$HOME" "${1#~/}" ;;
@@ -27,11 +33,13 @@ expand_path() {
   esac
 }
 
+# Lee outputs de Terraform. Si falta alguno, el script debe fallar.
 require_output() {
   local name="$1"
   terraform -chdir=terraform output -raw "$name"
 }
 
+# Comprueba que los valores criticos no esten vacios.
 require_non_empty() {
   local name="$1"
   local value="$2"
@@ -41,6 +49,7 @@ require_non_empty() {
   fi
 }
 
+# Datos necesarios para generar inventario y variables Ansible.
 VM_IP="$(require_output vm_public_ip)"
 VM_USER="$(require_output vm_admin_username)"
 ACR_LOGIN_SERVER="$(require_output acr_login_server)"
@@ -55,12 +64,14 @@ require_non_empty "acr_login_server" "$ACR_LOGIN_SERVER"
 require_non_empty "acr_admin_username" "$ACR_USER"
 require_non_empty "acr_admin_password" "$ACR_PASS"
 
+# Evita rutas erroneas como /Users/usuario/~/.ssh/id_ed25519.
 if [[ "$SSH_KEY" == *"/~/"* ]]; then
   printf '[ERROR] La ruta SSH contiene /~/: %s\n' "$SSH_KEY" >&2
   printf '[ERROR] Usa una ruta tipo ~/.ssh/id_ed25519 o %s/.ssh/id_ed25519.\n' "$HOME" >&2
   exit 1
 fi
 
+# La clave privada debe existir para que Ansible pueda conectarse a la VM.
 if [[ ! -f "$SSH_KEY" ]]; then
   printf '[ERROR] No existe la clave privada SSH esperada: %s\n' "$SSH_KEY" >&2
   exit 1
@@ -68,6 +79,7 @@ fi
 
 mkdir -p ansible/group_vars
 
+# Genera el inventario con la IP publica de la VM y el usuario SSH.
 sed \
   -e "s|__VM_PUBLIC_IP__|$VM_IP|g" \
   -e "s|__VM_ADMIN_USERNAME__|$VM_USER|g" \
@@ -76,6 +88,8 @@ sed \
 
 chmod 0644 ansible/hosts.ini
 
+# Genera las variables que usan los playbooks.
+# La password del ACR no se imprime por pantalla y el fichero queda con permisos 0600.
 tmp_group_vars="$(mktemp ansible/group_vars/all.yml.XXXXXX)"
 cat > "$tmp_group_vars" <<EOF
 acr_login_server: "$ACR_LOGIN_SERVER"
