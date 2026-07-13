@@ -11,7 +11,6 @@ images/      Imagenes de las dos aplicaciones
 scripts/     Scripts de despliegue, validacion y destruccion
 ```
 
-La documentacion auxiliar local no forma parte del commit de despliegue.
 
 ## Requisitos previos
 
@@ -111,21 +110,3 @@ Tambien se puede ejecutar el wrapper equivalente:
 ```bash
 ./ansible/destroy.sh
 ```
-
-## Archivos locales que no se suben
-
-Estos archivos pueden existir localmente, pero estan ignorados porque contienen estado, credenciales o datos generados:
-
-```text
-terraform/terraform.tfvars
-terraform/terraform.tfstate
-terraform/terraform.tfstate.backup
-terraform/.terraform/
-terraform/tfplan
-ansible/hosts.ini
-ansible/group_vars/all.yml
-.venv/
-kubeconfig
-```
-
-No deben borrarse durante el desarrollo solo por no subirse a Git. Se conservan localmente para poder repetir despliegues, validaciones o destruccion.
