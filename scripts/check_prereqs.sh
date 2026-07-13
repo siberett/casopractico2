@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Comprueba que la maquina local esta preparada antes de desplegar.
+# No crea recursos: solo valida herramientas, sesion Azure, tfvars y claves SSH.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Contador de errores para mostrar todos los fallos juntos al final.
 errors=0
 strict_ssh_cidr="${STRICT_SSH_CIDR_CHECK:-false}"
 
@@ -20,6 +23,7 @@ fail() {
   errors=$((errors + 1))
 }
 
+# Comprueba si un comando existe en el PATH.
 need_command() {
   if command -v "$1" >/dev/null 2>&1; then
     ok "Comando disponible: $1"
@@ -28,6 +32,7 @@ need_command() {
   fi
 }
 
+# Convierte rutas tipo ~/.ssh/id_ed25519 en rutas absolutas reales.
 expand_path() {
   case "$1" in
     "~/"*) printf '%s/%s\n' "$HOME" "${1#~/}" ;;
@@ -35,6 +40,7 @@ expand_path() {
   esac
 }
 
+# Lee valores simples del fichero terraform.tfvars.
 tfvar_value() {
   local key="$1"
   awk -F= -v key="$key" '
@@ -47,12 +53,14 @@ tfvar_value() {
   ' terraform/terraform.tfvars 2>/dev/null || true
 }
 
+# La raiz debe contener las carpetas principales del proyecto.
 if [[ ! -d terraform || ! -d ansible || ! -d images || ! -d scripts ]]; then
   fail "Ejecuta este script desde la raíz del repositorio."
 else
   ok "Ejecutándose desde la raíz del repositorio."
 fi
 
+# Herramientas necesarias para ejecutar el flujo completo.
 for cmd in git az terraform ansible-playbook ansible-galaxy kubectl python3; do
   need_command "$cmd"
 done
@@ -63,18 +71,21 @@ else
   warn "Falta curl. No se podrá comprobar automáticamente la IP pública actual."
 fi
 
+# Azure CLI debe estar autenticado antes de ejecutar Terraform.
 if az account show >/dev/null 2>&1; then
   ok "Azure CLI autenticado."
 else
   fail "Azure CLI no está autenticado. Ejecuta: az login"
 fi
 
+# terraform.tfvars es local y contiene los valores reales de la practica.
 if [[ -f terraform/terraform.tfvars ]]; then
   ok "Existe terraform/terraform.tfvars."
 else
   fail "No existe terraform/terraform.tfvars. Crea uno desde terraform/terraform.tfvars.example."
 fi
 
+# allowed_ssh_cidr controla desde donde se puede acceder por SSH a la VM.
 allowed_ssh_cidr="$(tfvar_value allowed_ssh_cidr)"
 if [[ -n "$allowed_ssh_cidr" ]]; then
   ok "allowed_ssh_cidr configurado: $allowed_ssh_cidr"
@@ -82,6 +93,7 @@ else
   warn "No se pudo leer allowed_ssh_cidr desde terraform/terraform.tfvars."
 fi
 
+# Si es posible, se compara la IP publica actual con la permitida en Terraform.
 if command -v curl >/dev/null 2>&1; then
   current_public_ip="$(curl -4 -s --max-time 10 ifconfig.me || true)"
   if [[ -z "$current_public_ip" ]]; then
@@ -108,6 +120,7 @@ if command -v curl >/dev/null 2>&1; then
   fi
 fi
 
+# Ansible necesita la clave privada y Azure necesita la clave publica.
 ssh_private_key_path="$(tfvar_value ssh_private_key_path)"
 ssh_public_key_path="$(tfvar_value ssh_public_key_path)"
 ssh_private_key_path="${ssh_private_key_path:-~/.ssh/id_ed25519}"
@@ -127,12 +140,14 @@ else
   fail "No existe la clave pública SSH esperada: $ssh_public_key_path"
 fi
 
+# Validacion estatica de Terraform antes del despliegue.
 if terraform -chdir=terraform validate >/dev/null 2>&1; then
   ok "terraform validate correcto."
 else
   warn "terraform validate no se pudo completar. Ejecuta: terraform -chdir=terraform init -upgrade && terraform -chdir=terraform validate"
 fi
 
+# Si ya existe repositorio Git, se muestra el estado para detectar archivos sensibles.
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   ok "Repositorio Git detectado."
   git status --ignored --short
