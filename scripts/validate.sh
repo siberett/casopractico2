@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Valida que el despliegue funciona de extremo a extremo.
+# Comprueba ACR, VM con Podman, servicio systemd, AKS, PVC y acceso web.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# La prueba de persistencia borra un pod, por eso solo se ejecuta si se pide.
 WITH_PERSISTENCE_TEST=false
 if [[ "${1:-}" == "--with-persistence-test" ]]; then
   WITH_PERSISTENCE_TEST=true
@@ -21,19 +24,23 @@ fail() {
   exit 1
 }
 
+# Devuelve solo el codigo HTTP de una peticion.
 http_code() {
   curl -k -o /dev/null -s -w '%{http_code}' "$@"
 }
 
+# Extrae el valor del contador desde el HTML de la app AKS.
 extract_counter() {
   sed -n 's/.*<div class="counter">\([0-9][0-9]*\)<\/div>.*/\1/p'
 }
 
+# Datos principales obtenidos desde Terraform.
 ACR="$(terraform -chdir=terraform output -raw acr_login_server)"
 ACR_NAME="${ACR%%.*}"
 TAG="casopractico2"
 AKS_NAMESPACE="${AKS_NAMESPACE:-cp2}"
 
+# 1. Validar que las dos imagenes existen en ACR con el tag esperado.
 for repo in podman-web aks-counter; do
   if az acr repository show-tags --name "$ACR_NAME" --repository "$repo" -o tsv | grep -Fxq "$TAG"; then
     ok "ACR contiene $repo:$TAG"
@@ -42,6 +49,7 @@ for repo in podman-web aks-counter; do
   fi
 done
 
+# 2. Validar la aplicacion Podman por HTTPS.
 VM_IP="$(terraform -chdir=terraform output -raw vm_public_ip)"
 code_without_auth="$(http_code "https://$VM_IP/")"
 [[ "$code_without_auth" == "401" ]] || fail "Podman web sin credenciales devolvió $code_without_auth, esperado 401"
@@ -51,6 +59,7 @@ code_with_auth="$(http_code -u alumno:unir2026 "https://$VM_IP/")"
 [[ "$code_with_auth" == "200" ]] || fail "Podman web con credenciales devolvió $code_with_auth, esperado 200"
 ok "Podman web devuelve 200 con alumno:unir2026"
 
+# 3. Validar que el servicio systemd del contenedor esta habilitado y activo.
 VM_USER="$(terraform -chdir=terraform output -raw vm_admin_username)"
 SSH_KEY="$(awk -F= '/ansible_ssh_private_key_file=/ {print $NF; exit}' ansible/hosts.ini 2>/dev/null || true)"
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
@@ -66,6 +75,7 @@ systemd_active="$(ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_IP" 'systemctl is-active co
 [[ "$systemd_active" == "active" ]] || fail "systemd no está active: $systemd_active"
 ok "Servicio systemd active"
 
+# 4. Validar estado basico del cluster AKS.
 kubectl get nodes >/dev/null
 kubectl get nodes --no-headers | awk '{print $2}' | grep -q 'Ready' || fail "No hay nodos AKS Ready"
 ok "AKS tiene nodo Ready"
@@ -73,6 +83,7 @@ ok "AKS tiene nodo Ready"
 kubectl get storageclass managed-csi >/dev/null
 ok "StorageClass managed-csi disponible"
 
+# 5. Validar almacenamiento persistente y despliegue de la app.
 pvc_phase="$(kubectl -n "$AKS_NAMESPACE" get pvc aks-counter-pvc -o jsonpath='{.status.phase}')"
 [[ "$pvc_phase" == "Bound" ]] || fail "PVC aks-counter-pvc está $pvc_phase, esperado Bound"
 ok "PVC aks-counter-pvc Bound"
@@ -84,6 +95,7 @@ ok "Deployment aks-counter disponible"
 kubectl -n "$AKS_NAMESPACE" get pods -l app=aks-counter --no-headers | awk '{print $3}' | grep -q 'Running' || fail "No hay pod aks-counter Running"
 ok "Pod aks-counter Running"
 
+# 6. Validar que el LoadBalancer tiene IP publica y responde.
 LB_IP="$(kubectl -n "$AKS_NAMESPACE" get svc aks-counter-svc -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
 [[ -n "$LB_IP" ]] || fail "Service aks-counter-svc sin EXTERNAL-IP"
 ok "Service aks-counter-svc con EXTERNAL-IP $LB_IP"
@@ -92,6 +104,7 @@ aks_code="$(curl -o /dev/null -s -w '%{http_code}' "http://$LB_IP/")"
 [[ "$aks_code" == "200" ]] || fail "aks-counter devolvió $aks_code, esperado 200"
 ok "aks-counter responde por HTTP"
 
+# 7. Prueba opcional de persistencia: borra el pod y revisa que el contador sigue.
 if [[ "$WITH_PERSISTENCE_TEST" == "true" ]]; then
   before_html="$(curl -s "http://$LB_IP/")"
   before_counter="$(printf '%s\n' "$before_html" | extract_counter)"
