@@ -44,13 +44,3 @@ __pycache__/
 *.tmp
 *.bak
 *.swp
-
-# Material auxiliar que no es necesario para ejecutar el despliegue.
-docs/
-prompts/
-entregables/
-AGENTS.md
-00_CREAR_HARNESS_AGENTE.md
-prompts_bloque_*.md
-matriz_requisitos_cp2.pdf
-*.pdf
