@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Script principal de la practica.
+# Ejecuta todo el despliegue desde la raiz del repositorio:
+# comprobaciones, Terraform, build de imagenes, Ansible y validaciones.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Lee valores sencillos del fichero terraform.tfvars.
+# Se usa para recuperar rutas locales, como la clave privada SSH.
 tfvar_value() {
   local key="$1"
   awk -F= -v key="$key" '
@@ -16,6 +21,7 @@ tfvar_value() {
   ' terraform/terraform.tfvars 2>/dev/null || true
 }
 
+# Expande rutas que empiezan por ~/ para evitar errores de ruta en Ansible o SSH.
 expand_path() {
   case "$1" in
     "~/"*) printf '%s/%s\n' "$HOME" "${1#~/}" ;;
@@ -23,6 +29,8 @@ expand_path() {
   esac
 }
 
+# Espera a que la VM acepte conexiones SSH antes de lanzar Ansible.
+# Esto evita que el playbook falle si Azure acaba de crear la maquina.
 wait_for_ssh() {
   local vm_ip="$1"
   local vm_user="$2"
@@ -66,12 +74,15 @@ EOF
   return 1
 }
 
+# 1. Comprobacion inicial del entorno local.
 printf '[INFO] Comprobando prerrequisitos\n'
 STRICT_SSH_CIDR_CHECK=true "$ROOT_DIR/scripts/check_prereqs.sh"
 
+# 2. Registro de providers necesarios en Azure.
 printf '[INFO] Registrando providers de Azure\n'
 "$ROOT_DIR/scripts/register_providers.sh"
 
+# 3. Creacion de infraestructura con Terraform.
 printf '[INFO] Ejecutando Terraform\n'
 terraform -chdir=terraform init
 terraform -chdir=terraform fmt
@@ -79,12 +90,15 @@ terraform -chdir=terraform validate
 terraform -chdir=terraform plan -out=tfplan
 terraform -chdir=terraform apply tfplan
 
+# 4. Construccion de imagenes y subida al ACR.
 printf '[INFO] Construyendo y subiendo imágenes\n'
 "$ROOT_DIR/scripts/build_and_push_images.sh"
 
+# 5. Configuracion de kubectl para poder trabajar contra AKS.
 printf '[INFO] Configurando kubeconfig de AKS\n'
 "$ROOT_DIR/scripts/get_aks_credentials.sh"
 
+# 6. Entorno Python local para ejecutar Ansible con modulos Kubernetes.
 printf '[INFO] Preparando entorno Python local\n'
 if [[ ! -d .venv ]]; then
   python3 -m venv .venv
@@ -94,12 +108,15 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install ansible kubernetes
 
+# 7. Colecciones Ansible necesarias para Podman y Kubernetes.
 printf '[INFO] Instalando colecciones Ansible\n'
 ansible-galaxy collection install -r ansible/requirements.yml
 
+# 8. Inventario y variables locales generadas desde outputs de Terraform.
 printf '[INFO] Generando inventario y variables Ansible\n'
 "$ROOT_DIR/scripts/generate_ansible_inventory.sh"
 
+# 9. Lectura de datos de conexion a la VM y espera de SSH.
 VM_IP="$(terraform -chdir=terraform output -raw vm_public_ip)"
 VM_USER="$(terraform -chdir=terraform output -raw vm_admin_username)"
 SSH_KEY="$(awk -F= '/ansible_ssh_private_key_file=/ {print $NF; exit}' ansible/hosts.ini 2>/dev/null || true)"
@@ -109,15 +126,19 @@ fi
 SSH_KEY="$(expand_path "${SSH_KEY:-}")"
 wait_for_ssh "$VM_IP" "$VM_USER" "$SSH_KEY"
 
+# 10. Configuracion de la VM: instala Podman y levanta la web.
 printf '[INFO] Ejecutando Ansible para VM + Podman\n'
 ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/hosts.ini ansible/playbook_podman.yml
 
+# 11. Despliegue de la aplicacion persistente en AKS.
 printf '[INFO] Ejecutando Ansible para AKS\n'
 ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook -i ansible/hosts.ini ansible/playbook_k8s.yml
 
+# 12. Validaciones finales de ACR, VM, Podman, AKS y aplicaciones.
 printf '[INFO] Ejecutando validaciones finales\n'
 "$ROOT_DIR/scripts/validate.sh"
 
+# 13. Resumen final con datos utiles para probar el entorno.
 SSH_COMMAND="$(terraform -chdir=terraform output -raw ssh_connection_command)"
 ACR="$(terraform -chdir=terraform output -raw acr_login_server)"
 AKS_NAME="$(terraform -chdir=terraform output -raw aks_name)"
