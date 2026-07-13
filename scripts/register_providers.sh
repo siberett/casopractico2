@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Registra en Azure los providers necesarios para crear los recursos.
+# Esto evita errores si la suscripcion es nueva o no tenia el servicio habilitado.
 providers=(
   Microsoft.ContainerRegistry
   Microsoft.Compute
@@ -9,11 +11,13 @@ providers=(
   Microsoft.Authorization
 )
 
+# Solicita el registro de cada provider.
 for provider in "${providers[@]}"; do
   printf '[INFO] Registrando provider Azure: %s\n' "$provider"
   az provider register --namespace "$provider"
 done
 
+# Espera hasta que Azure confirme el estado Registered.
 printf '[INFO] Esperando estado Registered\n'
 for provider in "${providers[@]}"; do
   for attempt in {1..30}; do
